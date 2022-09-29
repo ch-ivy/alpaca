@@ -1,0 +1,10 @@
+{
+  "/api/*": {
+    "target": "https://data.sandbox.alpaca.markets",
+    "secure": true,
+    "pathRewrite": {
+      "^/api": "https://data.sandbox.alpaca.markets"
+    },
+    "changeOrigin": true
+  }
+}

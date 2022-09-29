@@ -3,7 +3,10 @@
 // The list of file replacements can be found in `angular.json`.
 
 export const environment = {
-  production: false
+  production: false,
+  alpaca_key: 'CKR6VC0O46D70Z8144WY',
+  alpaca_secret: 'K3VdR8z8jxK2yn4RspGpXxOHqNZR3q81V5gIZlsR',
+  alpaca_api: 'http://localhost:3000/api',
 };
 
 /*
