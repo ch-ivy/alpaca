@@ -7,6 +7,7 @@ import {
   ApexTitleSubtitle,
 } from 'ng-apexcharts';
 import { AlpacaDataService } from './alpaca-data.service';
+import { expectedDataFormat } from './model';
 
 export type ChartOptions = {
   series: ApexAxisChartSeries;
@@ -51,7 +52,7 @@ export class AppComponent implements OnInit {
     this.data.getBarsV2Data(this.formData).subscribe(
       (data) => {
         console.log(data);
-        this.result = data;
+        this.result = expectedDataFormat;
         if (!this.result.bar) {
           this.error = 'No Data is returned!!';
           return;
