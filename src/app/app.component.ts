@@ -53,7 +53,7 @@ export class AppComponent implements OnInit {
       (data) => {
         console.log(data);
         this.result = expectedDataFormat;
-        if (!this.result.bar) {
+        if (!this.result.bars) {
           this.error = 'No Data is returned!!';
           return;
         }
