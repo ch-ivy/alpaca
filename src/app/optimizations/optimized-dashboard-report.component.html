@@ -1,0 +1,435 @@
+<!-- Optimized Dashboard Report Template -->
+<div class="dashboard-container" [class.loading]="loading$ | async">
+  
+  <!-- Loading State with Skeleton UI -->
+  <ng-container *ngIf="loading$ | async">
+    <div class="skeleton-loader">
+      <div class="skeleton-header"></div>
+      <div class="skeleton-charts">
+        <div class="skeleton-chart" *ngFor="let i of [1,2,3]; trackBy: trackByCategory"></div>
+      </div>
+    </div>
+  </ng-container>
+
+  <!-- Main Content - Only render when not loading -->
+  <ng-container *ngIf="!(loading$ | async)">
+    
+    <!-- Toolbar with PDF Export -->
+    <app-market-reports-toolbar
+      [allowExportToPdf]="true"
+      (exportToPdfEvent)="savePDF()"
+      class="app-hide-for-export">
+    </app-market-reports-toolbar>
+
+    <div class="d-flex flex-column wrapper h-100">
+      
+      <!-- Filters Section -->
+      <app-report-filters
+        class="app-hide-for-export wrapper_pd"
+        [showBack]="expandedBlock$ | async"
+        (resetFilters)="emitFilter(initFilter, true)"
+        (backEvent)="expandedBlock$.next(null)">
+        
+        <!-- Lazy-loaded filter components -->
+        <ng-container *ngTemplateOutlet="filtersTemplate"></ng-container>
+      </app-report-filters>
+
+      <!-- Main Dashboard Content -->
+      <div class="w-100 dashboard_box wrapper_pd" #top>
+        <div #tableTop class="d-flex flex-column w-100 gap-v-16" (click)="clickOutside()">
+          
+          <!-- Header Box - Only show when not expanded -->
+          <app-report-header-box
+            *ngIf="!(expandedBlock$ | async)"
+            [data]="blockData$ | async">
+          </app-report-header-box>
+
+          <!-- Territory Details and Map Layout -->
+          <ng-container *ngTemplateOutlet="mainContentTemplate"></ng-container>
+
+          <!-- Dashboard Charts - Lazy loaded -->
+          <ng-container 
+            *ngTemplateOutlet="dashboardTemplate; context: { exportTmp: false }">
+          </ng-container>
+        </div>
+      </div>
+    </div>
+
+    <!-- PDF Export Section -->
+    <div class="export_box">
+      <kendo-pdf-export
+        #pdf
+        margin="1cm"
+        paperSize="A4"
+        [scale]="0.35"
+        [keepTogether]="true"
+        [landscape]="false"
+        forcePageBreak=".page-break"
+        class="w-100">
+        
+        <div class="app-show-for-export">
+          <ng-container *ngTemplateOutlet="pdfContentTemplate"></ng-container>
+        </div>
+      </kendo-pdf-export>
+    </div>
+  </ng-container>
+</div>
+
+<!-- Templates for lazy loading and reusability -->
+
+<!-- Filters Template -->
+<ng-template #filtersTemplate>
+  <app-report-location-filter
+    [touchedFilter]="touchedFilters$ | async"
+    (filterEvent)="emitFilter($event.filter, $event.fetch)">
+  </app-report-location-filter>
+  
+  <app-report-classification-filter
+    [isFilterTouched]="(touchedFilters$ | async)?.classification"
+    (filterEvent)="emitFilter($event.filter, $event.fetch)">
+  </app-report-classification-filter>
+
+  <app-report-housing-type-filter
+    [isFilterTouched]="(touchedFilters$ | async)?.housingType"
+    (filterEvent)="emitFilter($event.filter, $event.fetch)">
+  </app-report-housing-type-filter>
+
+  <app-report-property-age-filter
+    [isFilterTouched]="(touchedFilters$ | async)?.yearBuilt"
+    (filterEvent)="emitFilter($event.filter, $event.fetch)">
+  </app-report-property-age-filter>
+
+  <app-report-new-construction-filter
+    [isFilterTouched]="(touchedFilters$ | async)?.includeNewConstruction"
+    (filterEvent)="emitFilter($event.filter, $event.fetch)">
+  </app-report-new-construction-filter>
+</ng-template>
+
+<!-- Main Content Template -->
+<ng-template #mainContentTemplate>
+  <div class="main-content-grid">
+    
+    <!-- Territory Details -->
+    <div class="territory-details-section">
+      <ng-container *ngTemplateOutlet="territoryDetailsTemplate"></ng-container>
+    </div>
+
+    <!-- Map Section - Conditionally rendered -->
+    <div class="map-section" *ngIf="!(shouldHideMap$ | async)">
+      <ng-container *ngTemplateOutlet="mapTemplate"></ng-container>
+    </div>
+
+    <!-- Occupancy and Absorption - Virtual Scrolled -->
+    <div class="metrics-section">
+      <ng-container *ngTemplateOutlet="occupancyTemplate"></ng-container>
+      <ng-container *ngTemplateOutlet="absorptionTemplate"></ng-container>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Dashboard Template with Virtual Scrolling -->
+<ng-template #dashboardTemplate let-exportTmp="exportTmp">
+  
+  <!-- Management Changes Section - Lazy Loaded -->
+  <div class="management-changes-grid" 
+       *ngIf="isMarketDashboard$ | async">
+    
+    <!-- Virtual scroll container for large datasets -->
+    <cdk-virtual-scroll-viewport 
+      itemSize="200" 
+      class="changes-viewport"
+      *ngIf="(managementChanges$ | async)?.numProperties > 50">
+      
+      <div *cdkVirtualFor="let change of managementChanges$ | async; trackBy: trackByName"
+           class="change-item">
+        <ng-container *ngTemplateOutlet="boxTemplate; context: { 
+          data: change,
+          title: 'Management Changes',
+          subtitle: 'Past 60 Days',
+          exportTmp: exportTmp 
+        }"></ng-container>
+      </div>
+    </cdk-virtual-scroll-viewport>
+
+    <!-- Regular rendering for smaller datasets -->
+    <div *ngIf="(managementChanges$ | async)?.numProperties <= 50">
+      <ng-container *ngTemplateOutlet="boxTemplate; context: { 
+        data: managementChanges$ | async,
+        title: 'Management Changes',
+        subtitle: 'Past 60 Days',
+        exportTmp: exportTmp 
+      }"></ng-container>
+    </div>
+  </div>
+
+  <!-- Chart Sections with Intersection Observer -->
+  <div class="charts-container">
+    
+    <!-- Bar Charts - Lazy loaded when in viewport -->
+    <div class="chart-section" 
+         appIntersectionObserver
+         (onIntersection)="loadChartData('barCharts')"
+         *ngIf="(expandedBlock$ | async) === null || (expandedBlock$ | async) === 'BarCharts'">
+      
+      <ng-container *ngTemplateOutlet="barChartsTemplate; context: { exportTmp: exportTmp }"></ng-container>
+    </div>
+
+    <!-- Performance Charts -->
+    <div class="performance-section"
+         appIntersectionObserver
+         (onIntersection)="loadChartData('performance')"
+         *ngIf="!(exportTmp) && (data$ | async)?.territoryDetails?.length >= 4">
+      
+      <ng-container *ngTemplateOutlet="performanceTemplate; context: { exportTmp: exportTmp }"></ng-container>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Occupancy Template with Virtual Scrolling -->
+<ng-template #occupancyTemplate let-exportTmp="exportTmp">
+  <div class="box occupancy-box"
+       [class.mt-32]="exportTmp"
+       [class.w-100]="(expandedBlock$ | async) === 'Occupancy' || exportTmp">
+    
+    <ng-container *ngTemplateOutlet="boxHeader; context: {
+      title: 'Occupancy',
+      subtitle: 'Past 6 Months',
+      details: onExpandBlock('Occupancy'),
+      exportTmp: exportTmp
+    }"></ng-container>
+
+    <div class="wrapper_sm pb-40"
+         [class.h-100]="(expandedBlock$ | async) === 'Occupancy' || exportTmp">
+      
+      <!-- Virtual Scrolling for large occupancy datasets -->
+      <cdk-virtual-scroll-viewport 
+        itemSize="40"
+        class="occupancy-viewport"
+        *ngIf="(occupancyChartData$ | async)?.length > 20">
+        
+        <div *cdkVirtualFor="let item of occupancyChartData$ | async; 
+                             let i = index; 
+                             trackBy: trackByTerritory"
+             class="occupancy-row d-flex flex-row justify-content-between w-100"
+             [class.active]="(filter$ | async)?.activeMapPolygon === item.name"
+             [class.in-active]="(filter$ | async)?.activeMapPolygon && 
+                               (filter$ | async)?.activeMapPolygon !== item.name">
+          
+          <span class="w-35 chart_text pl-8 app-pointer d-flex align-items-center"
+                (click)="$event.stopPropagation(); activateRow(item.name)">
+            {{ item.name | stateCode }}
+          </span>
+
+          <app-line-chart
+            class="line_chart w-65"
+            [data]="[item]"
+            [showLineDots]="true"
+            [showTooltip]="true"
+            [hideLegend]="true"
+            [lineDotSize]="2"
+            [showXAxis]="false"
+            [xsChart]="true">
+          </app-line-chart>
+        </div>
+      </cdk-virtual-scroll-viewport>
+
+      <!-- Regular rendering for smaller datasets -->
+      <div *ngIf="(occupancyChartData$ | async)?.length <= 20">
+        <div *ngFor="let item of occupancyChartData$ | async; 
+                     let i = index; 
+                     trackBy: trackByTerritory"
+             class="occupancy-row d-flex flex-row justify-content-between w-100"
+             [class.active]="(filter$ | async)?.activeMapPolygon === item.name">
+          
+          <span class="w-35 chart_text pl-8 app-pointer d-flex align-items-center"
+                (click)="$event.stopPropagation(); activateRow(item.name)">
+            {{ item.name | stateCode }}
+          </span>
+
+          <app-line-chart
+            class="line_chart w-65"
+            [data]="[item]"
+            [showLineDots]="true"
+            [showTooltip]="true"
+            [hideLegend]="true">
+          </app-line-chart>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Bar Charts Template -->
+<ng-template #barChartsTemplate let-exportTmp="exportTmp">
+  <div class="d-flex flex-row gap-16 w-100">
+    
+    <!-- Current Average Effective Rents -->
+    <div class="box w-33" [class.box_md]="!(exportTmp)">
+      <ng-container *ngTemplateOutlet="boxHeader; context: {
+        title: 'Current Average Effective Rents',
+        details: onExpandBlock('BarCharts'),
+        exportTmp: exportTmp
+      }"></ng-container>
+      
+      <div class="wrapper_sm" [class.h-100]="(expandedBlock$ | async) === 'BarCharts' || exportTmp">
+        <app-bar-chart
+          *ngIf="(currentAvgEffRent$ | async)?.length; else noDataTemplate"
+          class="w-100 chart"
+          [data]="currentAvgEffRent$ | async"
+          [opacity]="0.5"
+          [gap]="1"
+          [customMin]="10"
+          [maxValuePercentageIncrease]="0.3"
+          [disableAlignment]="true">
+        </app-bar-chart>
+      </div>
+    </div>
+
+    <!-- Additional charts... -->
+  </div>
+</ng-template>
+
+<!-- No Data Template -->
+<ng-template #noDataTemplate>
+  <div class="centered w-100 h-100">
+    <div class="d-flex flex-column centered gap-v-8">
+      <span class="card_text app-text-align-center">
+        No data available
+      </span>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Box Header Template -->
+<ng-template #boxHeader let-title="title" let-subtitle="subtitle" 
+             let-detailAction="details" let-exportTmp="exportTmp">
+  <div class="box_header d-flex flex-row align-items-center justify-content-between"
+       [class.gap-16]="subtitle || detailAction">
+    
+    <span class="card_text app-ellipsis w-100" [innerHTML]="title"
+          [class.w-90]="expandedBlock$ | async">
+    </span>
+
+    <div class="d-flex flex-row align-items-center gap-20">
+      <span *ngIf="subtitle" class="sub_text app-ellipsis">{{ subtitle }}</span>
+      
+      <span *ngIf="detailAction && !(expandedBlock$ | async) && !exportTmp"
+            class="sub_text app-pointer app-ellipsis"
+            (click)="detailAction()">
+        <mat-icon svgIcon="expandSide" 
+                  class="expand__icon app-link app-hide-for-export">
+        </mat-icon>
+      </span>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Generic Box Template -->
+<ng-template #boxTemplate let-data="data" let-title="title" 
+             let-subtitle="subtitle" let-details="details" let-exportTmp="exportTmp">
+  <div class="box">
+    <ng-container *ngTemplateOutlet="boxHeader; context: {
+      title: title,
+      details: details,
+      exportTmp: exportTmp
+    }"></ng-container>
+    
+    <div class="wrapper_sm d-flex flex-column gap-v-16">
+      <div class="d-flex flex-row justify-content-between gap-8">
+        <div class="d-flex flex-column centered w-50">
+          <span class="big_text centered flex-column">
+            <span *ngIf="data?.numProperties">{{ data.numProperties | number }}</span>
+            <span *ngIf="data?.numManagements">{{ data.numManagements | number }}</span>
+            <span *ngIf="!data?.numProperties && !data?.numManagements">—</span>
+            <span class="f-14">{{ data?.numProperties ? 'Properties' : 'Managements' }}</span>
+          </span>
+          <div>
+            <span class="card_text f-12">{{ subtitle }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Territory Details Template -->
+<ng-template #territoryDetailsTemplate>
+  <div class="box territory-details-box">
+    <ng-container *ngTemplateOutlet="boxHeader; context: {
+      title: title$ | async,
+      details: onExpandBlock('Details')
+    }"></ng-container>
+    
+    <div class="wrapper_sm">
+      <app-dashboard-report-details-table
+        [expanded]="(expandedBlock$ | async) === 'Details'"
+        (detailsClickEvent)="expandedBlock$.next($event)">
+      </app-dashboard-report-details-table>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Map Template -->
+<ng-template #mapTemplate>
+  <div class="map_box w-50" (click)="$event.stopPropagation()">
+    <ng-content select="[map]"></ng-content>
+  </div>
+</ng-template>
+
+<!-- Absorption Template -->
+<ng-template #absorptionTemplate let-exportTmp="exportTmp">
+  <div class="box absorption-box"
+       [class.mt-32]="exportTmp"
+       [class.w-100]="(expandedBlock$ | async) === 'Absorption' || exportTmp">
+    
+    <ng-container *ngTemplateOutlet="boxHeader; context: {
+      title: 'Absorption (Units)',
+      subtitle: 'Past 6 Months',
+      details: onExpandBlock('Absorption'),
+      exportTmp: exportTmp
+    }"></ng-container>
+    
+    <div class="wrapper_sm"
+         [class.h-100]="(expandedBlock$ | async) === 'Absorption' || exportTmp">
+      <app-dashboard-report-absorption-table></app-dashboard-report-absorption-table>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Performance Template -->
+<ng-template #performanceTemplate let-exportTmp="exportTmp">
+  <app-dashboard-report-performers-table
+    *ngIf="(expandedBlock$ | async) === null && !(isAllLocationUnSelected$ | async)"
+    [timeFrame]="MoMTimeFrame$ | async">
+  </app-dashboard-report-performers-table>
+</ng-template>
+
+<!-- PDF Content Template -->
+<ng-template #pdfContentTemplate>
+  <div class="d-flex flex-column w-100 gap-v-16 app-height-auto app-relative">
+    <app-market-reports-export-pdf-title
+      [title]="(reportType$ | async | reportsTitle) + (locationName$ | async)">
+    </app-market-reports-export-pdf-title>
+
+    <app-report-header-box
+      *ngIf="!(expandedBlock$ | async)"
+      [data]="blockData$ | async">
+    </app-report-header-box>
+
+    <div class="box w-100">
+      <ng-container *ngTemplateOutlet="boxHeader; context: {
+        title: title$ | async,
+        details: onExpandBlock('Details')
+      }"></ng-container>
+      
+      <div class="wrapper_sm h-100">
+        <app-dashboard-report-details-table
+          [expanded]="true">
+        </app-dashboard-report-details-table>
+      </div>
+    </div>
+
+    <ng-container *ngTemplateOutlet="dashboardTemplate; context: { exportTmp: true }">
+    </ng-container>
+  </div>
+</ng-template>
