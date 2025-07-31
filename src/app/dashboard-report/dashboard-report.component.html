@@ -1,0 +1,1140 @@
+<app-market-reports-toolbar
+  [allowExportToPdf]="true"
+  (exportToPdfEvent)="savePDF(pdf)"
+></app-market-reports-toolbar>
+
+@if ((loading$ | async) || (data$ | async | isFalsy)) {
+  <app-market-report-loader />
+}
+
+<div class="d-flex flex-column wrapper h-100">
+  <app-report-filters
+    class="app-hide-for-export wrapper_pd"
+    [showBack]="expandedBlock$ | async"
+    (resetFilters)="emitFilter(initFilter, true)"
+    (backEvent)="expandedBlock$.next(null)"
+  >
+    <app-report-location-filter
+      [touchedFilter]="touchedFilters$ | async"
+      (filterEvent)="emitFilter($event.filter, $event.fetch)"
+    >
+    </app-report-location-filter>
+    <app-report-classification-filter
+      [isFilterTouched]="(touchedFilters$ | async).classification"
+      (filterEvent)="emitFilter($event.filter, $event.fetch)"
+    >
+    </app-report-classification-filter>
+
+    <app-report-housing-type-filter
+      [isFilterTouched]="(touchedFilters$ | async).housingType"
+      (filterEvent)="emitFilter($event.filter, $event.fetch)"
+    ></app-report-housing-type-filter>
+
+    <app-report-property-age-filter
+      [isFilterTouched]="(touchedFilters$ | async).yearBuilt"
+      (filterEvent)="emitFilter($event.filter, $event.fetch)"
+    ></app-report-property-age-filter>
+
+    <app-report-new-construction-filter
+      [isFilterTouched]="(touchedFilters$ | async)?.includeNewConstruction"
+      (filterEvent)="emitFilter($event.filter, $event.fetch)"
+    ></app-report-new-construction-filter>
+  </app-report-filters>
+
+  <div class="w-100 dashboard_box wrapper_pd" #top>
+    <div
+      #tableTop
+      class="d-flex flex-column w-100 gap-v-16 app-height-auto"
+      (click)="clickOutside()"
+    >
+      @if (expandedBlock$ | async | isFalsy) {
+        <app-report-header-box
+          [data]="blockData$ | async"
+        ></app-report-header-box>
+      }
+
+      @if (
+        (data$ | async)?.territoryDetails?.length &&
+        (data$ | async)?.territoryDetails?.length < 3 &&
+        (shouldHideMap$ | async | isFalsy)
+      ) {
+        <div class="d-flex flex-row gap-16">
+          <div class="d-flex flex-column gap-v-16 w-50">
+            <ng-container
+              [ngTemplateOutlet]="territoryDetailsTmp"
+            ></ng-container>
+            <ng-container [ngTemplateOutlet]="occupancyTmp"></ng-container>
+            <ng-container [ngTemplateOutlet]="absorptionTmp"></ng-container>
+          </div>
+
+          <ng-container [ngTemplateOutlet]="mapTemplate"></ng-container>
+        </div>
+      } @else {
+        @if (
+          (expandedBlock$ | async | isFalsy) ||
+          (expandedBlock$ | async) === ReportDashboardBlocks.Details
+        ) {
+          <div
+            [class.d-flex]="expandedBlock$ | async | isFalsy"
+            class="flex-row gap-16 w-100"
+          >
+            @if (
+              (expandedBlock$ | async | isFalsy) ||
+              (expandedBlock$ | async) === ReportDashboardBlocks.Details
+            ) {
+              <ng-container
+                [ngTemplateOutlet]="territoryDetailsTmp"
+              ></ng-container>
+            }
+
+            @if (
+              (expandedBlock$ | async | isFalsy) &&
+              (shouldHideMap$ | async | isFalsy)
+            ) {
+              <ng-container [ngTemplateOutlet]="mapTemplate"></ng-container>
+            }
+          </div>
+        }
+      }
+
+      <ng-container
+        [ngTemplateOutlet]="dashboardTmp"
+        [ngTemplateOutletContext]="{
+          exportTmp: false
+        }"
+      >
+      </ng-container>
+    </div>
+  </div>
+</div>
+
+<div class="export_box">
+  <kendo-pdf-export
+    #pdf
+    margin="1cm"
+    paperSize="A4"
+    [scale]="0.35"
+    [keepTogether]="true"
+    [landscape]="false"
+    forcePageBreak=".page-break"
+    class="w-100"
+  >
+    <div class="app-show-for-export">
+      <div
+        class="d-flex flex-column w-100 gap-v-16 app-height-auto app-relative"
+      >
+        <app-market-reports-export-pdf-title
+          [title]="
+            (reportType$ | async | reportsTitle) + (locationName$ | async)
+          "
+        ></app-market-reports-export-pdf-title>
+
+        @if (expandedBlock$ | async | isFalsy) {
+          <app-report-header-box
+            [data]="blockData$ | async"
+          ></app-report-header-box>
+        }
+
+        <div class="box w-100">
+          <ng-container
+            [ngTemplateOutlet]="boxHeader"
+            [ngTemplateOutletContext]="{
+              title: title$ | async,
+              details: onExpandBlock(ReportDashboardBlocks.Details)
+            }"
+          ></ng-container>
+
+          <div class="wrapper_sm h-100">
+            <app-dashboard-report-details-table
+              [attr.expanded]="true"
+              [expanded]="true"
+            ></app-dashboard-report-details-table>
+          </div>
+        </div>
+
+        <span
+          [class.page-break]="(data$ | async)?.territoryDetails?.length >= 18"
+        ></span>
+
+        <ng-container
+          [ngTemplateOutlet]="dashboardTmp"
+          [ngTemplateOutletContext]="{
+            exportTmp: true
+          }"
+        >
+        </ng-container>
+      </div>
+    </div>
+  </kendo-pdf-export>
+</div>
+
+<ng-template #dashboardTmp let-exportTmp="exportTmp">
+  @if (
+    ((expandedBlock$ | async | isFalsy) ||
+      (expandedBlock$ | async) === ReportDashboardBlocks.Occupancy ||
+      (expandedBlock$ | async) === ReportDashboardBlocks.Absorption) &&
+    ((data$ | async)?.territoryDetails?.length >= 3 || (shouldHideMap$ | async))
+  ) {
+    <div
+      [class.d-flex]="
+        (expandedBlock$ | async | isFalsy) && (exportTmp | isFalsy)
+      "
+      class="flex-row gap-16 w-100 flex-wrap"
+    >
+      @if (
+        (expandedBlock$ | async | isFalsy) ||
+        (expandedBlock$ | async) === ReportDashboardBlocks.Occupancy
+      ) {
+        <ng-container
+          [ngTemplateOutlet]="occupancyTmp"
+          [ngTemplateOutletContext]="{
+            exportTmp
+          }"
+        ></ng-container>
+      }
+
+      @if (
+        (expandedBlock$ | async | isFalsy) ||
+        (expandedBlock$ | async) === ReportDashboardBlocks.Absorption
+      ) {
+        <ng-container
+          [ngTemplateOutlet]="absorptionTmp"
+          [ngTemplateOutletContext]="{
+            exportTmp
+          }"
+        ></ng-container>
+      }
+    </div>
+  }
+
+  @if (expandedBlock$ | async | isFalsy) {
+    <div class="d-flex flex-row gap-16 page-break">
+      @if (isMarketDashboard$ | async) {
+        @if (managementChanges$ | async) {
+          <div class="w-100">
+            <ng-container
+              [ngTemplateOutlet]="boxTemplate"
+              [ngTemplateOutletContext]="{
+                data: (managementChanges$ | async),
+                title: 'Management Changes',
+                subtitle: 'Past 60 Days',
+                details: (managementChanges$ | async).numProperties
+                  ? this.runReport({
+                      reportType:
+                        ReportsElasticValue.PROPERTY_MANAGEMENT_CHANGES,
+                      mode: TimelineModeItems.Previous,
+                      scale: TimelineScaleItems.Month,
+                      value: 2,
+                      context: Context.property
+                    })
+                  : null,
+                exportTmp: exportTmp
+              }"
+            ></ng-container>
+          </div>
+        }
+
+        @if (nowLeasing$ | async) {
+          <div class="w-100">
+            <ng-container
+              [ngTemplateOutlet]="boxTemplate"
+              [ngTemplateOutletContext]="{
+                data: (nowLeasing$ | async),
+                title: 'Now Leasing',
+                subtitle: 'Past 6 Months',
+                details: (nowLeasing$ | async).numProperties
+                  ? this.runReport({
+                      reportType: ReportsElasticValue.NOW_LEASING,
+                      mode: TimelineModeItems.Previous,
+                      scale: TimelineScaleItems.Month,
+                      value: 6,
+                      context: Context.property
+                    })
+                  : null,
+                exportTmp: exportTmp
+              }"
+            ></ng-container>
+          </div>
+        }
+        @if (newInTown$ | async) {
+          <div class="w-100">
+            <ng-container
+              [ngTemplateOutlet]="boxTemplate"
+              [ngTemplateOutletContext]="{
+                data: (newInTown$ | async),
+                title: 'New to Market',
+                subtitle: 'Past 6 Months',
+                details: (newInTown$ | async).numManagements
+                  ? this.runReport({
+                      reportType: ReportsElasticValue.NEW_IN_TOWN,
+                      mode: TimelineModeItems.Previous,
+                      scale: TimelineScaleItems.Month,
+                      value: 6,
+                      context: Context.property
+                    })
+                  : null,
+                exportTmp: exportTmp
+              }"
+            ></ng-container>
+          </div>
+        }
+
+        @if ((isMarketDashboard$ | async) || (loading$ | async)) {
+          <div class="box w-100">
+            <ng-container
+              [ngTemplateOutlet]="boxHeader"
+              [ngTemplateOutletContext]="{
+                title: 'Manager Changes',
+                details: this.runReport({
+                  reportType: ReportsElasticValue.MANAGER_CHANGES,
+                  mode: TimelineModeItems.Previous,
+                  scale: TimelineScaleItems.Month,
+                  value: 3,
+                  context: Context.property
+                }),
+                exportTmp: exportTmp
+              }"
+            ></ng-container>
+            <div class="wrapper_sm d-flex flex-column gap-v-16">
+              <div class="h-100 centered">
+                <span
+                  class="card_larger_text app-text-align-center d-flex flex-column"
+                >
+                  <span>
+                    {{ managerChanges$ | async | number | emptyText }}
+                  </span>
+                  <span class="f-14">Onsite Manager Changes</span>
+                  <span class="card_text f-12"> Past 90 days </span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="box w-100">
+            <ng-container
+              [ngTemplateOutlet]="boxHeader"
+              [ngTemplateOutletContext]="{
+                title: 'Regional Changes',
+                details:
+                  (regionalChanges$ | async)
+                    ? this.runReport({
+                        reportType: ReportsElasticValue.REGIONAL_CHANGES,
+                        mode: TimelineModeItems.Previous,
+                        scale: TimelineScaleItems.Month,
+                        value: 3,
+                        context: Context.property
+                      })
+                    : null,
+                exportTmp: exportTmp
+              }"
+            ></ng-container>
+            <div class="wrapper_sm flex-column gap-v-16">
+              <div class="h-100 centered">
+                <span
+                  class="card_larger_text app-text-align-center d-flex flex-column"
+                >
+                  <span>
+                    {{ regionalChanges$ | async | number | emptyText }}
+                  </span>
+                  <span class="f-14">Regional Supervisor Changes</span>
+                  <span class="card_text f-12"> Past 90 days </span>
+                </span>
+              </div>
+            </div>
+          </div>
+        }
+      } @else {
+        <div class="d-flex flex-column gap-v-16 w-33">
+          @if (managementChanges$ | async) {
+            <ng-container
+              [ngTemplateOutlet]="boxTemplate"
+              [ngTemplateOutletContext]="{
+                data: (managementChanges$ | async),
+                title: 'Management Changes',
+                subtitle: 'Past 60 Days',
+                details: (managementChanges$ | async).numProperties
+                  ? this.runReport({
+                      reportType:
+                        ReportsElasticValue.PROPERTY_MANAGEMENT_CHANGES,
+                      mode: TimelineModeItems.Previous,
+                      scale: TimelineScaleItems.Month,
+                      value: 2,
+                      context: Context.property
+                    })
+                  : null,
+                exportTmp: exportTmp
+              }"
+            ></ng-container>
+          }
+
+          @if (nowLeasing$ | async) {
+            <ng-container
+              [ngTemplateOutlet]="boxTemplate"
+              [ngTemplateOutletContext]="{
+                data: (nowLeasing$ | async),
+                title: 'Now Leasing',
+                subtitle: 'Past 6 Months',
+                details: (nowLeasing$ | async).numProperties
+                  ? this.runReport({
+                      reportType: ReportsElasticValue.NOW_LEASING,
+                      mode: TimelineModeItems.Previous,
+                      scale: TimelineScaleItems.Month,
+                      value: 6,
+                      context: Context.property
+                    })
+                  : null,
+                exportTmp: exportTmp
+              }"
+            ></ng-container>
+          }
+        </div>
+
+        <div class="w-33">
+          <ng-container
+            [ngTemplateOutlet]="pipelineTmp"
+            [ngTemplateOutletContext]="{
+              exportTmp: exportTmp
+            }"
+          ></ng-container>
+        </div>
+
+        <div class="w-33">
+          <ng-container
+            [ngTemplateOutlet]="classificationTmp"
+            [ngTemplateOutletContext]="{
+              exportTmp: exportTmp
+            }"
+          ></ng-container>
+        </div>
+      }
+    </div>
+  }
+
+  @if (exportTmp && (data$ | async)?.territoryDetails?.length >= 4) {
+    <ng-container
+      [ngTemplateOutlet]="performanceTmp"
+      [ngTemplateOutletContext]="{
+        exportTmp: exportTmp
+      }"
+    ></ng-container>
+  }
+
+  @if (
+    (expandedBlock$ | async | isFalsy) ||
+    (expandedBlock$ | async) === ReportDashboardBlocks.BarCharts
+  ) {
+    <div
+      class="d-flex flex-row gap-16 w-100"
+      [class.page-break]="(expandedBlock$ | async | isFalsy) && exportTmp"
+    >
+      <div
+        class="box w-33"
+        [class.box_md]="
+          (expandedBlock$ | async | isFalsy) && (exportTmp | isFalsy)
+        "
+      >
+        <ng-container
+          [ngTemplateOutlet]="boxHeader"
+          [ngTemplateOutletContext]="{
+            title: 'Current Average Effective Rents',
+            details: onExpandBlock(ReportDashboardBlocks.BarCharts),
+            exportTmp: exportTmp
+          }"
+        ></ng-container>
+        <div
+          class="wrapper_sm"
+          [class.h-100]="
+            (expandedBlock$ | async) === ReportDashboardBlocks.BarCharts ||
+            exportTmp
+          "
+        >
+          @if ((currentAvgEffRent$ | async).length) {
+            <app-bar-chart
+              class="w-100 chart"
+              [data]="currentAvgEffRent$ | async"
+              [opacity]="0.5"
+              [labelContent]="dollarLabelContent"
+              [gap]="1"
+              [customMin]="10"
+              [maxValuePercentageIncrease]="0.3"
+              [disableAlignment]="true"
+            >
+            </app-bar-chart>
+          } @else {
+            <div class="centered w-100 h-100">
+              <div class="d-flex flex-column centered gap-v-8">
+                <span class="card_text app-text-align-center">
+                  No current avg effective rent record
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div
+        class="box w-33"
+        [class.box_md]="
+          (expandedBlock$ | async | isFalsy) && (exportTmp | isFalsy)
+        "
+      >
+        <ng-container
+          [ngTemplateOutlet]="boxHeader"
+          [ngTemplateOutletContext]="{
+            title: 'Current Average Effective Rents/Sqft',
+            details: onExpandBlock(ReportDashboardBlocks.BarCharts),
+            exportTmp: exportTmp
+          }"
+        ></ng-container>
+        <div
+          class="wrapper_sm"
+          [class.h-100]="
+            (expandedBlock$ | async) === ReportDashboardBlocks.BarCharts ||
+            exportTmp
+          "
+        >
+          @if ((currentAvgEffRentPerSqft$ | async).length) {
+            <app-bar-chart
+              class="w-100 chart"
+              [data]="currentAvgEffRentPerSqft$ | async"
+              [opacity]="0.5"
+              [labelContent]="dollarLabelContent"
+              [gap]="1"
+              [minValuePercentageIncrease]="0.5"
+              [maxValuePercentageIncrease]="0.55"
+              [disableAlignment]="true"
+            >
+            </app-bar-chart>
+          } @else {
+            <div class="centered w-100 h-100">
+              <div class="d-flex flex-column centered gap-v-8">
+                <span class="card_text app-text-align-center">
+                  No current avg effective rent/sqft record
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div
+        class="box w-33"
+        [class.box_md]="
+          (expandedBlock$ | async | isFalsy) && (exportTmp | isFalsy)
+        "
+      >
+        <ng-container
+          [ngTemplateOutlet]="boxHeader"
+          [ngTemplateOutletContext]="{
+            title: 'Current Average Sqft',
+            details: onExpandBlock(ReportDashboardBlocks.BarCharts),
+            exportTmp: exportTmp
+          }"
+        ></ng-container>
+        <div
+          class="wrapper_sm"
+          [class.h-100]="
+            (expandedBlock$ | async) === ReportDashboardBlocks.BarCharts ||
+            exportTmp
+          "
+        >
+          @if ((currentAvgSqft$ | async).length) {
+            <app-bar-chart
+              class="w-100 chart"
+              [data]="currentAvgSqft$ | async"
+              [opacity]="0.5"
+              [labelContent]="sqftLabelContent"
+              [gap]="0.5"
+              [minValuePercentageIncrease]="0.8"
+              [disableAlignment]="true"
+            >
+            </app-bar-chart>
+          } @else {
+            <div class="centered w-100 h-100">
+              <div class="d-flex flex-column centered gap-v-8">
+                <span class="card_text app-text-align-center">
+                  No current avg sqft record
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (expandedBlock$ | async | isFalsy) {
+    <div class="d-flex flex-row gap-16 w-100">
+      <div class="box box_md w-33">
+        <ng-container
+          [ngTemplateOutlet]="boxHeader"
+          [ngTemplateOutletContext]="{
+            title: 'Current Average Rent',
+            exportTmp: exportTmp
+          }"
+        ></ng-container>
+        <div class="wrapper_sm">
+          @if ((avgRentandEffRent$ | async).length) {
+            <app-column-chart
+              class="chart"
+              [data]="avgRentandEffRent$ | async"
+              [yAxisLabel]="dollarLabelContent"
+              [showXCrossAxis]="true"
+              [showYAxis]="true"
+              [showLegend]="true"
+              [seriesLabels]="MONEY_FULL_VALUE_SERIES_LABEL"
+              [maxValuePercentageIncrease]="0.08"
+              [disableAlignment]="true"
+            >
+            </app-column-chart>
+          } @else {
+            <div class="centered w-100 h-100">
+              <div class="d-flex flex-column centered gap-v-8">
+                <span class="card_text app-text-align-center">
+                  No current avg rent record
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="box box_md w-33">
+        <ng-container
+          [ngTemplateOutlet]="boxHeader"
+          [ngTemplateOutletContext]="{
+            title: 'Current Average Rent/Sqft',
+            exportTmp: exportTmp
+          }"
+        ></ng-container>
+        <div class="wrapper_sm">
+          @if ((avgRentandEffRentSqft$ | async).length) {
+            <app-column-chart
+              class="chart"
+              [data]="avgRentandEffRentSqft$ | async"
+              [yAxisLabel]="dollarLabelContent"
+              [showXCrossAxis]="true"
+              [showYAxis]="true"
+              [showLegend]="true"
+              [showTooltip]="true"
+              [seriesLabels]="TINY_MONEY_SERIES_LABEL"
+              [maxValuePercentageIncrease]="0.08"
+              [disableAlignment]="true"
+            >
+            </app-column-chart>
+          } @else {
+            <div class="centered w-100 h-100">
+              <div class="d-flex flex-column centered gap-v-8">
+                <span class="card_text app-text-align-center">
+                  No current avg rent/sqft record
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="box box_md w-33">
+        <ng-container
+          [ngTemplateOutlet]="boxHeader"
+          [ngTemplateOutletContext]="{
+            title: 'Current Average Occupancy',
+            exportTmp: exportTmp
+          }"
+        ></ng-container>
+        <div class="wrapper_sm">
+          @if ((avgOccupancy$ | async).length) {
+            <app-column-chart
+              class="chart"
+              [data]="avgOccupancy$ | async"
+              [showXCrossAxis]="true"
+              [showYAxis]="true"
+              [yAxisLabel]="percentLabelContent"
+              [showTooltip]="true"
+              [seriesLabels]="PERCENT_SERIES_LABEL"
+              [maxValuePercentageIncrease]="0.08"
+              [disableAlignment]="true"
+            >
+            </app-column-chart>
+          } @else {
+            <div class="centered w-100 h-100">
+              <div class="d-flex flex-column centered gap-v-8">
+                <span class="card_text app-text-align-center">
+                  No occupancy record
+                </span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    @if (isMarketDashboard$ | async) {
+      <div class="d-flex flex-row gap-16 align-items-center">
+        <div class="w-33 box_md">
+          <ng-container
+            [ngTemplateOutlet]="pipelineTmp"
+            [ngTemplateOutletContext]="{
+              exportTmp: exportTmp
+            }"
+          ></ng-container>
+        </div>
+
+        <div class="box w-33 box_md">
+          <ng-container
+            [ngTemplateOutlet]="boxHeader"
+            [ngTemplateOutletContext]="{
+              title: 'Year Built',
+              exportTmp: exportTmp
+            }"
+          ></ng-container>
+          <div class="wrapper_sm">
+            @if ((yearsBuilt$ | async)?.length) {
+              <app-donut-chart
+                [allowHover]="true"
+                [showLabels]="true"
+                [showTooltip]="true"
+                [label]="yearBuiltLabel"
+                [holeSize]="80"
+                [data]="yearsBuilt$ | async"
+                [smallerLabels]="true"
+                [chartText]="
+                  DonutChartCenterText(
+                    ((data$ | async)?.yearBuiltDetails?.total.numProperties
+                      | number) + ' Properties',
+                    ''
+                  )
+                "
+                class="w-100 h-100 pie_chart"
+              ></app-donut-chart>
+            } @else {
+              <div class="centered w-100 h-100">
+                <div class="d-flex flex-column centered gap-v-8">
+                  <span class="card_text app-text-align-center">
+                    No year built record
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="w-33 box_md">
+          <ng-container
+            [ngTemplateOutlet]="classificationTmp"
+            [ngTemplateOutletContext]="{
+              exportTmp: exportTmp
+            }"
+          ></ng-container>
+        </div>
+      </div>
+    }
+  }
+
+  <div
+    [class.d-flex]="(expandedBlock$ | async | isFalsy) && (exportTmp | isFalsy)"
+    class="flex-row gap-16 w-100"
+    [class.h-100]="exportTmp"
+  >
+    @if (!exportTmp && (data$ | async)?.territoryDetails?.length >= 4) {
+      <ng-container
+        [ngTemplateOutlet]="performanceTmp"
+        [ngTemplateOutletContext]="{
+          exportTmp: exportTmp
+        }"
+      ></ng-container>
+    }
+  </div>
+</ng-template>
+
+<ng-template #performanceTmp let-exportTmp="exportTmp">
+  @if (
+    (expandedBlock$ | async | isFalsy) &&
+    (isAllLocationUnSelected$ | async | isFalsy)
+  ) {
+    <app-dashboard-report-performers-table
+      [timeFrame]="MoMTimeFrame$ | async"
+    ></app-dashboard-report-performers-table>
+  }
+</ng-template>
+
+<ng-template
+  #boxTemplate
+  let-data="data"
+  let-title="title"
+  let-subtitle="subtitle"
+  let-details="details"
+  let-exportTmp="exportTmp"
+>
+  <div class="box">
+    <ng-container
+      [ngTemplateOutlet]="boxHeader"
+      [ngTemplateOutletContext]="{
+        title,
+        details,
+        exportTmp
+      }"
+    ></ng-container>
+    <div class="wrapper_sm d-flex flex-column gap-v-16">
+      <div class="d-flex flex-row justify-content-between gap-8">
+        <div class="d-flex flex-column centered w-50">
+          <span class="big_text centered flex-column">
+            @if (data.numProperties) {
+              <span>{{ data.numProperties | number }}</span>
+              <span class="f-14">Properties</span>
+            } @else if (data.numManagements) {
+              {{ data.numManagements | number }}
+              <br />
+              <span class="f-14">Managements</span>
+            } @else {
+              {{ EMPTY_DASH }}
+            }
+          </span>
+
+          <div>
+            <span class="card_text f-12"> {{ subtitle }} </span>
+          </div>
+        </div>
+
+        <div
+          [class.d-flex]="expandedBlock$ | async | isFalsy"
+          class="flex-column w-50"
+        >
+          @if (has(data, 'numAssociatedProperties')) {
+            <ng-container
+              [ngTemplateOutlet]="boxTemplateSm"
+              [ngTemplateOutletContext]="{
+                title: 'Properties',
+                value: data.numAssociatedProperties,
+                color: 'b_blue'
+              }"
+            ></ng-container>
+          }
+          @if (has(data, 'numAssociatedManagements')) {
+            <ng-container
+              [ngTemplateOutlet]="boxTemplateSm"
+              [ngTemplateOutletContext]="{
+                title: 'Managements',
+                value: data.numAssociatedManagements,
+                color: 'b_blue'
+              }"
+            ></ng-container>
+          }
+
+          <ng-container
+            [ngTemplateOutlet]="boxTemplateSm"
+            [ngTemplateOutletContext]="{
+              title: 'Units',
+              value: data.numAssociatedUnits,
+              color: 'b_red'
+            }"
+          ></ng-container>
+        </div>
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template
+  #boxTemplateSm
+  let-title="title"
+  let-value="value"
+  let-color="color"
+>
+  <span
+    class="card_sm d-flex flex-column gap-v-8 align-items-start {{ color }}"
+  >
+    <span>
+      {{ title }}
+    </span>
+
+    <span class="card_value_text f-18 w-100">
+      {{ value | number | emptyText }}
+    </span>
+  </span>
+</ng-template>
+
+<ng-template
+  #boxHeader
+  let-title="title"
+  let-subtitle="subtitle"
+  let-detailAction="details"
+  let-exportTmp="exportTmp"
+>
+  <div
+    class="box_header d-flex flex-row align-items-center justify-content-between"
+    [class.gap-16]="subtitle || detailAction"
+  >
+    <span
+      class="card_text app-ellipsis w-100"
+      [innerHTML]="title"
+      [class.w-90]="expandedBlock$ | async"
+    >
+    </span>
+
+    <div class="d-flex flex-row align-items-center gap-20">
+      @if (subtitle) {
+        <span class="sub_text app-ellipsis"> {{ subtitle }} </span>
+      }
+      @if (detailAction && (expandedBlock$ | async | isFalsy) && !exportTmp) {
+        <span
+          class="sub_text app-pointer app-ellipsis"
+          (click)="detailAction()"
+        >
+          <mat-icon
+            appTooltip
+            kendoTooltip
+            title="Show details"
+            svgIcon="expandSide"
+            class="expand__icon app-link app-hide-for-export"
+          ></mat-icon>
+        </span>
+      }
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #pipelineTmp let-exportTmp="exportTmp">
+  <div class="box h-100">
+    <ng-container
+      [ngTemplateOutlet]="boxHeader"
+      [ngTemplateOutletContext]="{
+        title: 'Pipeline',
+        details: (pipeline$ | async).numProperties
+          ? this.runReport({
+              reportType: ReportsElasticValue.PIPELINE_NATIONAL,
+              extras: pipelineExtras,
+              context: Context.pipeline
+            })
+          : null,
+        exportTmp: exportTmp
+      }"
+    ></ng-container>
+    <div
+      [class.d-flex]="expandedBlock$ | async | isFalsy"
+      class="centered wrapper_sm"
+    >
+      @if ((pipeline$ | async).piechart.length) {
+        <app-donut-chart
+          [allowHover]="true"
+          [showLabels]="true"
+          [label]="pieChartLabel"
+          [holeSize]="90"
+          [smallerLabels]="true"
+          [data]="(pipeline$ | async).piechart"
+          [chartText]="
+            DonutChartCenterText(
+              ((pipeline$ | async).numProperties | number) + ' Props',
+              ((pipeline$ | async).numUnits | number) + ' Units'
+            )
+          "
+          class="w-100 h-100 pie_chart"
+        ></app-donut-chart>
+      } @else {
+        <div class="centered w-100 h-100">
+          <div class="d-flex flex-column centered gap-v-8">
+            <span class="card_text app-text-align-center">
+              No pipeline record
+            </span>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #occupancyTmp let-exportTmp="exportTmp">
+  <div
+    class="box"
+    [class.mt-32]="exportTmp"
+    [class.w_50]="
+      (expandedBlock$ | async) !== ReportDashboardBlocks.Occupancy &&
+      !exportTmp &&
+      ((data$ | async)?.territoryDetails?.length >= 3 ||
+        (shouldHideMap$ | async))
+    "
+    [class.w-100]="
+      (expandedBlock$ | async) === ReportDashboardBlocks.Occupancy || exportTmp
+    "
+  >
+    <ng-container
+      [ngTemplateOutlet]="boxHeader"
+      [ngTemplateOutletContext]="{
+        title: 'Occupancy',
+        subtitle: 'Past 6 Months',
+        details: onExpandBlock(ReportDashboardBlocks.Occupancy),
+        exportTmp: exportTmp
+      }"
+    ></ng-container>
+    <div
+      class="wrapper_sm pb-40"
+      [class.h-100]="
+        (expandedBlock$ | async) === ReportDashboardBlocks.Occupancy ||
+        exportTmp
+      "
+    >
+      <div class="w-100">
+        @for (item of occupancyChartData$ | async; track trackByTerritory; let i = $index) {
+          <div
+            class="d-flex flex-row justify-content-between w-100"
+            [class.active]="(filter$ | async)?.activeMapPolygon === item.name"
+            [class.in-active]="
+              (filter$ | async)?.activeMapPolygon &&
+              (filter$ | async)?.activeMapPolygon !== item.name
+            "
+            [class.page-break]="(i + 1) % 20 === 0"
+          >
+            <span
+              class="w-35 chart_text pl-8 app-pointer d-flex align-items-center"
+              (click)="$event.stopPropagation(); activateRow(item.name)"
+            >
+              {{ item.name | stateCode }}
+            </span>
+
+            <app-line-chart
+              class="line_chart w-65"
+              [data]="[item]"
+              [showLineDots]="true"
+              [showTooltip]="true"
+              [hideLegend]="true"
+              [lineDotSize]="2"
+              [showXAxis]="false"
+              [seriesLabels]="percentSeriesLabel"
+              [seriesNameAsTooltipHeader]="false"
+              [xsChart]="true"
+              [alignTooltipValuesWide]="true"
+            ></app-line-chart>
+          </div>
+        }
+        <table class="table_footer">
+          <tfoot>
+            <tr>
+              <th class="w-36"></th>
+              @for (col of occupancyChartColumns$ | async; track trackByIndex) {
+                <th bordered>
+                  {{ col }}
+                </th>
+              }
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #absorptionTmp let-exportTmp="exportTmp">
+  <div
+    class="box"
+    [class.mt-32]="exportTmp"
+    [class.w_50]="
+      (expandedBlock$ | async) !== ReportDashboardBlocks.Absorption &&
+      !exportTmp &&
+      ((data$ | async)?.territoryDetails?.length >= 3 ||
+        (shouldHideMap$ | async))
+    "
+    [class.w-100]="
+      (expandedBlock$ | async) === ReportDashboardBlocks.Absorption || exportTmp
+    "
+    [class.page-break]="(territories$ | async)?.length > 26"
+  >
+    <ng-container
+      [ngTemplateOutlet]="boxHeader"
+      [ngTemplateOutletContext]="{
+        title: 'Absorption (Units)',
+        subtitle: 'Past 6 Months',
+        details: onExpandBlock(ReportDashboardBlocks.Absorption),
+        exportTmp: exportTmp
+      }"
+    ></ng-container>
+    <div
+      class="wrapper_sm"
+      [class.h-100]="
+        (expandedBlock$ | async) === ReportDashboardBlocks.Absorption ||
+        exportTmp
+      "
+    >
+      <app-dashboard-report-absorption-table></app-dashboard-report-absorption-table>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #territoryDetailsTmp>
+  <div
+    class="box"
+    [class.h-100]="(expandedBlock$ | async) === ReportDashboardBlocks.Details"
+    [class.w-100]="
+      (expandedBlock$ | async) === ReportDashboardBlocks.Details ||
+      (shouldHideMap$ | async)
+    "
+    [class.h-500]="
+      (data$ | async)?.territoryDetails?.length >= 3 &&
+      (shouldHideMap$ | async | isFalsy)
+    "
+    [class.w-50]="
+      ((data$ | async)?.territoryDetails?.length | isFalsy) ||
+      ((data$ | async)?.territoryDetails?.length >= 3 &&
+        (shouldHideMap$ | async | isFalsy))
+    "
+  >
+    <ng-container
+      [ngTemplateOutlet]="boxHeader"
+      [ngTemplateOutletContext]="{
+        title: title$ | async,
+        details: onExpandBlock(ReportDashboardBlocks.Details)
+      }"
+    ></ng-container>
+    <div
+      class="wrapper_sm"
+      [class.h-100]="(expandedBlock$ | async) === ReportDashboardBlocks.Details"
+    >
+      <app-dashboard-report-details-table
+        [attr.expanded]="
+          (expandedBlock$ | async) === ReportDashboardBlocks.Details
+        "
+        [expanded]="(expandedBlock$ | async) === ReportDashboardBlocks.Details"
+        (detailsClickEvent)="expandedBlock$.next($event)"
+      ></app-dashboard-report-details-table>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #mapTemplate>
+  <div class="map_box w-50" (click)="$event.stopPropagation()">
+    <ng-content select="[map]"></ng-content>
+  </div>
+</ng-template>
+
+<ng-template #classificationTmp let-exportTmp="exportTmp">
+  <div class="box h-100">
+    <ng-container
+      [ngTemplateOutlet]="boxHeader"
+      [ngTemplateOutletContext]="{
+        title: 'Classification',
+        exportTmp: exportTmp
+      }"
+    ></ng-container>
+    <div class="wrapper_sm">
+      @if ((classifications$ | async)?.length) {
+        <app-donut-chart
+          [allowHover]="false"
+          [showLabels]="true"
+          [showTooltip]="true"
+          [label]="classificationLabel"
+          [holeSize]="80"
+          [data]="classifications$ | async"
+          [smallerLabels]="true"
+          class="w-100 h-100 pie_chart"
+        ></app-donut-chart>
+      } @else {
+        <div class="centered w-100 h-100">
+          <div class="d-flex flex-column centered gap-v-8">
+            <span class="card_text app-text-align-center">
+              No classification record
+            </span>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</ng-template>
