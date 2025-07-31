@@ -1,0 +1,273 @@
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  
+  // GPU acceleration for smoother animations
+  will-change: transform;
+  transform: translateZ(0);
+  
+  // Hardware acceleration
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.virtual-scroll-viewport {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  
+  // Smooth scrolling with momentum
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  
+  // Optimize scroll performance
+  contain: layout style paint;
+}
+
+.standard-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  
+  // Optimize rendering
+  contain: layout style;
+}
+
+.chart-item {
+  position: relative;
+  height: 40px;
+  padding: 4px 0;
+  
+  // GPU acceleration for positioning
+  will-change: transform;
+  transform: translateZ(0);
+  
+  // Optimize repaints
+  contain: layout style paint;
+  
+  &[data-category] {
+    // Use data attributes for efficient querying
+    transition: opacity 0.2s ease-in-out;
+  }
+  
+  &:hover {
+    .chart-bar {
+      opacity: 0.8;
+      transform: scale(1.02);
+    }
+  }
+}
+
+.chart-bar {
+  position: relative;
+  height: 32px;
+  min-width: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  
+  // Smooth transitions with GPU acceleration
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  
+  // Optimize for animations
+  backface-visibility: hidden;
+  
+  // Flexbox for label positioning
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  &:active {
+    transform: scale(0.98) translateZ(0);
+  }
+}
+
+.chart-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+  
+  // Text rendering optimization
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.chart-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  
+  // Text rendering optimization
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.chart-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  
+  // Smooth appearance
+  animation: tooltipFadeIn 0.2s ease-out;
+  
+  // GPU acceleration
+  will-change: transform;
+  transform: translateZ(0);
+  
+  // Prevent text selection
+  user-select: none;
+  pointer-events: none;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0;
+  
+  &:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 4px;
+  }
+}
+
+.tooltip-title {
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+.tooltip-value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.chart-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #666;
+  font-size: 14px;
+  
+  // GPU acceleration
+  will-change: opacity;
+  transform: translate(-50%, -50%) translateZ(0);
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #e3e3e3;
+  border-top: 2px solid #4285f4;
+  border-radius: 50%;
+  
+  // Optimized spinner animation
+  animation: spin 1s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+// Animations
+@keyframes spin {
+  0% { 
+    transform: rotate(0deg) translateZ(0); 
+  }
+  100% { 
+    transform: rotate(360deg) translateZ(0); 
+  }
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+// Responsive optimizations
+@media (max-width: 768px) {
+  .chart-item {
+    height: 36px;
+  }
+  
+  .chart-bar {
+    height: 28px;
+    padding: 0 6px;
+  }
+  
+  .chart-label,
+  .chart-value {
+    font-size: 11px;
+  }
+  
+  .chart-tooltip {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+// High DPI display optimizations
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .chart-label,
+  .chart-value {
+    // Sharper text on retina displays
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+// Reduced motion preferences
+@media (prefers-reduced-motion: reduce) {
+  .chart-bar,
+  .chart-item,
+  .loading-spinner {
+    transition: none;
+    animation: none;
+  }
+  
+  .virtual-scroll-viewport {
+    scroll-behavior: auto;
+  }
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  .chart-tooltip {
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    backdrop-filter: blur(8px);
+  }
+  
+  .chart-loading {
+    color: #ccc;
+  }
+}
